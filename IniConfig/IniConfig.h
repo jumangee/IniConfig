@@ -6,43 +6,43 @@
 #define DEBUGLN(t) Serial.println(t);
 #define DEBUG(t) Serial.print(t);
 
+class IniConfig;
+
 class IniConfigItem {
 	public:
 		String name;
 
-        IniConfigItem(String &name) {
-			this->name = name;
-		}
+        IniConfigItem(String &name, IniConfig* cfg);
 		
 		~IniConfigItem() {
 			if (nextItem) {
 				delete nextItem;
 			}
 		}
+		
+        void setFloat(double v);
 
-        void set(double v);
+        void setInt(int v);
 
-        void set(int v);
+        void setDword(uint32_t v);
 
-        void set(uint32_t v);
+        void setBool(bool v);
 
-        void set(bool v);
-
-        void set(String v);
+        void setString(String v);
 
         void unset();
 
         String getLine();
 
-        void get(float &v);
+        float getFloat(float def);
 
-        void get(int &v);
+        int getInt(int def);
 
-        void get(uint32_t &v);
+        uint32_t getDword(uint32_t def);
 
-        void get(bool &v);
+        bool getBool(bool def);
 
-        void get(String &v);
+        String getString(String def);
 
         IniConfigItem* getNext();
     
@@ -54,6 +54,8 @@ class IniConfigItem {
 
         bool isChanged();
 
+        void unChanged();
+
     protected:
 		enum ValueType {
 			NONE,
@@ -62,20 +64,21 @@ class IniConfigItem {
 			FLOAT,
 			DWORD,
             BOOL
-		} type = NONE;
+		} 				type = NONE;
 
         union {
             int         valueInt;
             uint32_t    valueDword;
-            float       valueFloat;
+            double		valueFloat;
             bool        valueBool;
         };
         
-		String stringValue;
-		bool changed;
+		String			stringValue;
+		bool 			changed = false;
 		
-		IniConfigItem* nextItem = NULL;
-        IniConfigItem* prevItem = NULL;
+		IniConfigItem*	nextItem = NULL;
+        IniConfigItem*	prevItem = NULL;
+		IniConfig*		config	= NULL;
 
         void set(ValueType type);
 };
@@ -103,10 +106,18 @@ class IniConfigGroup {
         bool write(File &file);
 
         bool isChanged();
+		
+        void dump();
+
+        void unChanged();
 
         IniConfigGroup* getNext();
 
         IniConfigGroup* getPrev();
+
+        IniConfigItem* getItems() {
+            return items;
+        }
 
     protected:
 		IniConfigItem* items = NULL;
@@ -137,7 +148,7 @@ class IniConfig {
 
         IniConfigItem* findItem(String group, String name);
 
-        IniConfigItem* findOrCreateItem(String &group, String &name);
+        IniConfigItem* findOrCreateItem(String group, String name);
 
         float stringToFloat(String &value, int pointAt) {
             float result = value.substring(0, pointAt).toInt();
@@ -151,8 +162,6 @@ class IniConfig {
                     }
                 }
             }
-            DEBUG("stringToFloat RESULT: ")
-            DEBUGLN(result);
             return result;
         }
 
@@ -162,11 +171,28 @@ class IniConfig {
 
         bool update() {
             if (this->isChanged()) {
-                DEBUG("IniConfig/update!");
+				Serial.println(F("writing...")); delay(2000);
                 return this->write();
-            }
+            } else {
+				Serial.println(F("no update!")); delay(2000);
+			}
             return true;
         }
+
+        void removeGroup(String group);
+
+        void add(IniConfigGroup* group);
+		
+		
+        float getFloat(String group, String name, float def);
+
+        int getInt(String group, String name, int def);
+
+        uint32_t getDword(String group, String name, uint32_t def);
+
+        bool getBool(String group, String name, bool def);
+
+        String getString(String group, String name, String def);
 
         void setFloat(String group, String item, float value);
 
@@ -178,26 +204,33 @@ class IniConfig {
 
         void setString(String group, String item, String value);
 
-        /////
-
-        float getFloat(String group, String name, float def);
-
-        int getInt(String group, String name, int def);
-
-        uint32_t getDword(String group, String name, uint32_t def);
-
-        bool getBool(String group, String name, bool def);
-
-        String getString(String group, String name, String def);
-
         void unset(String group, String name);
+		
+		void changed() {
+			if (autoUpdate) {
+				this->update();
+			}
+		}
 
-        void removeGroup(String group);
+        void unChanged() {
+            if (this->groups) {
+				groups->unChanged();
+			}
+        }
+		
+		void dump();
+		
+		void setAutoupdate(bool update) {
+			this->autoUpdate = update;
+		}
 
-        void add(IniConfigGroup* group);
+        IniConfigGroup* getGroups() {
+            return groups;
+        }
 
 	protected:
-		String filename;
-		IniConfigGroup* groups = NULL;
-		fs::FS* fs;
+		String			filename;
+		IniConfigGroup*	groups = NULL;
+		fs::FS*			fs;
+		bool			autoUpdate = false;
 };

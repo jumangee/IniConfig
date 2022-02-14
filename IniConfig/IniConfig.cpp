@@ -1,41 +1,47 @@
 #include "IniConfig.h"
 #include "FS.h"
 
-void IniConfigItem::set(double v) {
-    DEBUG("IniConfigItem::setF, new value=")
-    DEBUGLN(v)
+IniConfigItem::IniConfigItem(String &name, IniConfig* cfg) {
+			this->name = name;
+			this->config = cfg;
+			this->set(NONE);
+		}
+
+void IniConfigItem::setFloat(double v) {
     this->valueFloat = v;
     set(FLOAT);
+			config->changed();
 }
 
-void IniConfigItem::set(int v) {
-    DEBUG("IniConfigItem::setI, new value=")
-    DEBUGLN(v)
+void IniConfigItem::setInt(int v) {
     this->valueInt = v;
     set(INT);
+			config->changed();
 }
 
-void IniConfigItem::set(uint32_t v) {
-    DEBUG("IniConfigItem::setDw, new value=")
-    DEBUGLN(v)
+void IniConfigItem::setDword(uint32_t v) {
     this->valueDword = v;
     set(DWORD);
+			config->changed();
 }
 
-void IniConfigItem::set(bool v) {
+void IniConfigItem::setBool(bool v) {
     this->valueBool = v;
     set(BOOL);
+			config->changed();
 }
 
-void IniConfigItem::set(String v) {
+void IniConfigItem::setString(String v) {
     this->stringValue = v;
     set(STRING);
+			config->changed();
 }
 
 void IniConfigItem::unset() {
     this->stringValue = F("");
     set(NONE);
     cut();
+			config->changed();
 }
 
 String IniConfigItem::getLine() {
@@ -58,65 +64,69 @@ String IniConfigItem::getLine() {
     return String(F(""));
 }
 
-void IniConfigItem::get(float &v) {
+float IniConfigItem::getFloat(float def) {
     if (this->type == FLOAT) {
-        v = this->valueFloat;
+        return this->valueFloat;
     } else if (this->type == DWORD) {
-        v = (float)this->valueDword;
+        return (float)this->valueDword;
     } else if (this->type == INT) {
-        v = (float)this->valueInt;
+        return (float)this->valueInt;
     } else if (this->type == STRING) {
-        v = this->stringValue.toFloat();
+        return this->stringValue.toFloat();
     }
+			return def;
 }
 
-void IniConfigItem::get(int &v) {
+int IniConfigItem::getInt(int def) {
     if (this->type == INT) {
-        v = this->valueInt;
+        return this->valueInt;
     } else if (this->type == FLOAT) {
-        v = (int)this->valueFloat;
+        return (int)this->valueFloat;
     } else if (this->type == DWORD) {
-        v = (int)this->valueDword;
+        return (int)this->valueDword;
     } else if (this->type == STRING) {
-        v = this->stringValue.toInt();
+        return this->stringValue.toInt();
     }
+			return def;
 }
 
-void IniConfigItem::get(uint32_t &v) {
+uint32_t IniConfigItem::getDword(uint32_t def) {
     if (this->type == DWORD) {
-        v = this->valueDword;
+				return this->valueDword;
     } else if (this->type == FLOAT) {
-        v = (uint32_t)this->valueFloat;
+        return (uint32_t)this->valueFloat;
     } else if (this->type == INT) {
-        v = (uint32_t)this->valueInt;
+        return (uint32_t)this->valueInt;
     } else if (this->type == STRING) {
-        v = this->stringValue.toInt();
+        return this->stringValue.toInt();
     }
+			return def;
 }
 
-void IniConfigItem::get(bool &v) {
+bool IniConfigItem::getBool(bool def) {
     if (this->type == BOOL) {
-        v = this->valueBool;
+        return this->valueBool;
     } else if (this->type == DWORD) {
-        v = this->valueDword != 0;
+        return this->valueDword != 0;
     } else if (this->type == INT) {
-        v = this->valueInt != 0;
+        return this->valueInt != 0;
     } else if (this->type == STRING) {
-        v = this->stringValue.equalsIgnoreCase(F("true"));
+        return this->stringValue.equalsIgnoreCase(F("true"));
     }
-    
+    return def;
 }
 
-void IniConfigItem::get(String &v) {
+String IniConfigItem::getString(String def) {
     if (this->type == STRING) {
-        v = this->stringValue;
+        return this->stringValue;
     } if (this->type == BOOL) {
-        v = String(this->valueBool);
+        return String(this->valueBool);
     } else if (this->type == DWORD) {
-        v = String(this->valueDword);
+        return String(this->valueDword);
     } else if (this->type == INT) {
-        v = String(this->valueInt);
+        return String(this->valueInt);
     }
+			return def;
 }
 
 IniConfigItem* IniConfigItem::getNext() {
@@ -144,6 +154,10 @@ void IniConfigItem::setPrev(IniConfigItem* prev) {
 
 bool IniConfigItem::isChanged() {
     return this->changed;
+}
+
+void IniConfigItem::unChanged() {
+    this->changed = false;
 }
 
 void IniConfigItem::set(ValueType type) {
@@ -184,25 +198,17 @@ void IniConfigGroup::cut() {
 }
 
 void IniConfigGroup::add(IniConfigItem* item) {
-    //DEBUGLN("item/add");
     if (!items) {
         //DEBUGLN("item/add/1");
         items = item;
         return;
     }
-    //DEBUGLN("item/add/2");
     IniConfigItem* prev = items;
     while (prev && prev->getNext()) {
         //DEBUGLN("item/add/2-");
         prev = prev->getNext();
     }
-    //DEBUGLN("item/add/3");
-    //delay(2000);
-    //item->setPrev(prev);
-    //delay(2000);
-    //DEBUGLN("item/add/4");
     prev->setNext(item);
-    //delay(5000);
 }
 
 void IniConfigGroup::setNext(IniConfigGroup* next) {
@@ -216,41 +222,59 @@ void IniConfigGroup::setPrev(IniConfigGroup* prev) {
 }
 
 bool IniConfigGroup::write(File &file) {
-    //DEBUGLN("IniConfigGroup/write");
     if (items) {
-        //DEBUG("IniConfigGroup/group!");
-        //DEBUG(this->name);
         file.print(F("["));
         file.print(this->name);
         file.println(F("]"));
         IniConfigItem* item = items;
         while (item != NULL) {
-            //DEBUG("IniConfigGroup/write item!");
             String line = item->getLine();
             if (line.length() > 0) {
-                //file.prinln(line);
-                /*file.write((const uint8_t*)line.c_str(), line.length());
-                file.write('\r');
-                file.write('\n');*/
                 file.println(line);
             }
-            //DEBUG("IniConfigGroup/write next");
             item = item->getNext();
         }
     }
-    //DEBUG("IniConfigGroup/write done");
     return true;
 }
 
 bool IniConfigGroup::isChanged() {
     IniConfigItem* item = items;
+			//Serial.println(String(F("group: ")) + this->name + F(" changed?"));
     while (item != NULL) {
+				//Serial.println(String(F("Item: ")) + item->name + String(F(" changed?")) + String(item->isChanged()));
         if (item->isChanged()) {
             return true;
         }
         item = item->getNext();
     }
+    if (this->getNext()) {
+        return this->getNext()->isChanged();
+    }
     return false;
+}
+
+void IniConfigGroup::dump() {
+    IniConfigItem* item = items;
+			Serial.println(String(F("== ")) + this->name + String(F(" ==")));
+    while (item) {
+				Serial.println(String(F("- ")) + item->name + String(item->isChanged() ? F(" +=") : F(" = ") ) + item->getString(F("")));
+        item = item->getNext();
+    }
+    if (this->getNext()) {
+        this->getNext()->dump();
+    }
+}
+
+void IniConfigGroup::unChanged() {
+    IniConfigItem* item = items;
+    while (item) {
+        item->unChanged();
+        item = item->getNext();
+    }
+    if (this->getNext()) {
+        this->getNext()->unChanged();
+    }
 }
 
 IniConfigGroup* IniConfigGroup::getNext() {
@@ -275,15 +299,9 @@ bool IniConfig::isChanged() {
 }
 
 IniConfigGroup* IniConfig::findGroup(String name) {
-    //DEBUGLN("IniConfig/findGroup");
     IniConfigGroup* group = groups;
     while (group) {
-        /*DEBUG("IniConfig/while/group: ");
-        DEBUG(group->name);
-        DEBUG(" -?- ");
-        DEBUGLN(name);*/
         if (group->name.equalsIgnoreCase(name)) {
-            //DEBUGLN("findGroup!ok");
             return group;
         }
         group = group->getNext();
@@ -292,33 +310,24 @@ IniConfigGroup* IniConfig::findGroup(String name) {
 }
 
 IniConfigItem* IniConfig::findItem(String group, String name) {
-    //DEBUGLN("findItem");
     IniConfigGroup* g = this->findGroup(group);
     if (!g) {        
         return NULL;
     }
-    //DEBUGLN("findItem/findGroup/get item");
     return g->findItem(name);
 }
 
-IniConfigItem* IniConfig::findOrCreateItem(String &group, String &name) {
-    //DEBUGLN("findOrCreateItem");
+IniConfigItem* IniConfig::findOrCreateItem(String group, String name) {
     IniConfigGroup* g = this->findGroup(group);
     IniConfigItem* item = NULL;
     if (g) {
         item = g->findItem(name);
     } else {
-        //DEBUGLN("findOrCreateItem//new group");
         g = new IniConfigGroup(group);
-        //DEBUGLN("findOrCreateItem//new group/add");
         this->add(g);
     }
     if (!item) {
-        //DEBUGLN("findOrCreateItem//new item");
-        item = new IniConfigItem(name);
-        //DEBUGLN("findOrCreateItem//new item/add");
-        delay(2000);
-        //DEBUGLN("findOrCreateItem//new item/add1");
+        item = new IniConfigItem(name, this);
         g->add(item);
     }
     return item;
@@ -327,17 +336,11 @@ IniConfigItem* IniConfig::findOrCreateItem(String &group, String &name) {
 bool IniConfig::read() {
             clear();
             File file = fs->open(this->filename, "r");
-            //DEBUGLN("File read open");
             if (file) {
                 IniConfigGroup* curGroup = NULL;
-                //DEBUGLN("av?");
                 while (file.available()) {
-                    //DEBUGLN("av!");
                     String line = file.readStringUntil('\n');
                     line.trim();
-                    //DEBUGLN("===========");
-                    //DEBUGLN(line);
-                    //DEBUGLN("===========");
                     if (!line.isEmpty()) {
                         //DEBUGLN("not empt");
                         char c = line.charAt(0);
@@ -352,82 +355,68 @@ bool IniConfig::read() {
                                 IniConfigGroup* group = new IniConfigGroup(name);
                                 this->add(group);
                                 curGroup = group;
+                                //DEBUGLN(String(F("new group: ")) + name);
                             }
-                            //DEBUGLN("continue");
                             continue;
                         }
-                        //DEBUGLN("not gr");
                         uint16_t delimPos = line.indexOf('=');
                         if (curGroup && delimPos > 0) {
-                            //DEBUGLN("param!");
                             String paramName = line.substring(0, delimPos);
                             paramName.trim();
                             String value = line.substring(delimPos+1);
                             value.trim();
-                            //DEBUGLN(paramName);
-                            //DEBUGLN(value);
-                            
-                            //IniConfigItem* item = this->findItem(curGroup->name, paramName);
                             IniConfigItem* item = curGroup->findItem(paramName);
                             if (!item) {
-                                item = new IniConfigItem(paramName);
+                                item = new IniConfigItem(paramName, this);
                                 curGroup->add(item);
                             }
                             if (value.equalsIgnoreCase(F("true")) || value.equalsIgnoreCase(F("false")) ) {
-                                item->set(value.equalsIgnoreCase(F("true")));
+                                item->setBool(value.equalsIgnoreCase(F("true")));
                             } else {
-                                //DEBUGLN("value?");
-                                //DEBUGLN(value.length());
                                 if (value.length() < 8) {
                                     bool decimals = true;
                                     for (uint16_t i = 0; i < value.length(); i++) {
                                         char c = value.charAt(i);
                                         if (c != '-' && c != '.' && !(c >= '0' && c <= '9')) {
-                                            //DEBUG("found not decimal: ");
-                                            //DEBUGLN(c);
                                             decimals = false;
                                             break;
                                         }
                                     }
                                     if (decimals) {
-                                        //DEBUGLN("decimals!");
                                         int pointAt = value.indexOf('.');
                                         //num
                                         if (value.charAt(0) == '-') {
                                             if (pointAt == -1) {
-                                                item->set( (int) (-1 * value.substring(1).toInt()) );
+                                                item->setInt( -1 * value.substring(1).toInt() );
                                             } else {
                                                 value = value.substring(1);
-                                                item->set( (float) -1.0 * stringToFloat(value, pointAt-1));
+                                                item->setFloat( -1.0 * stringToFloat(value, pointAt-1));
                                             }
                                         } else {
                                             if (pointAt != -1) {
-                                                item->set(stringToFloat(value, pointAt));
+                                                item->setFloat(stringToFloat(value, pointAt));
                                             } else {
                                                 uint32_t v = 0;
                                                 uint8_t vlen = value.length();
                                                 for (uint8_t p = 0; p < vlen; p++) {
                                                     v += value.substring(vlen - 1 - p, vlen - p).toInt() * pow(10, p);
                                                 }
-                                                item->set(v);
+                                                item->setDword(v);
                                             }
                                         }
                                     } else {
-                                        //DEBUGLN("string!");
-                                        item->set(value);
+                                        item->setString(value);
                                     }
                                 } else {
-                                    //DEBUGLN("string2");
-                                    item->set(value);
+                                    item->setString(value);
                                 }
                             }
                         }
                     }
                 }
                 file.close();
-                //DEBUGLN("file close");
+                this->unChanged();
             }
-            //DEBUGLN("read done");
             return true;
 }
 
@@ -450,79 +439,8 @@ bool IniConfig::write() {
                 }
             }
             file.close();
+            this->unChanged();
             return result;
-}
-
-void IniConfig::setFloat(String group, String item, float value) {
-    findOrCreateItem(group, item)->set(value);
-}
-
-void IniConfig::setInt(String group, String item, int value) {
-    findOrCreateItem(group, item)->set(value);
-}
-
-void IniConfig::setDword(String group, String item, uint32_t value) {
-    findOrCreateItem(group, item)->set(value);
-}
-
-void IniConfig::setBool(String group, String item, bool value) {
-    findOrCreateItem(group, item)->set(value);
-}
-
-void IniConfig::setString(String group, String item, String value) {
-    findOrCreateItem(group, item)->set(value);
-}
-
-float IniConfig::getFloat(String group, String name, float def) {
-    float result = def;
-    IniConfigItem* item = findItem(group, name);
-    if (item) {
-        item->get(result);
-    }
-    return result;
-}
-
-int IniConfig::getInt(String group, String name, int def) {
-    int result = def;
-    DEBUGLN(result);
-    IniConfigItem* item = findItem(group, name);
-    if (item) {
-        item->get(result);
-    }
-    return result;
-}
-
-uint32_t IniConfig::getDword(String group, String name, uint32_t def) {
-    uint32_t result = def;
-    IniConfigItem* item = findItem(group, name);
-    if (item) {
-        item->get(result);
-    }
-    return result;
-}
-
-bool IniConfig::getBool(String group, String name, bool def) {
-    bool result = def;
-    IniConfigItem* item = findItem(group, name);
-    if (item) {
-        item->get(result);
-    }
-    return result;
-}
-
-String IniConfig::getString(String group, String name, String def) {
-    String result = def;
-    IniConfigItem* item = findItem(group, name);
-    if (item) {
-        item->get(result);
-    }
-    return result;
-}
-
-void IniConfig::unset(String group, String name) {
-    IniConfigItem* item = findOrCreateItem(group, name);
-    item->unset();
-    delete item;
 }
 
 void IniConfig::removeGroup(String group) {
@@ -539,8 +457,71 @@ void IniConfig::add(IniConfigGroup* group) {
         return;
     }
     IniConfigGroup* prev = groups;
+    //DEBUGLN(String(F("add/check gr: ")) + prev->name);
     while (prev && prev->getNext()) {
+        //DEBUGLN(String(F("add/check gr: ")) + prev->name);
         prev = prev->getNext();
     }
-    prev->setNext(group);
+    //DEBUGLN(String(F("add/set prev gr: ")) + prev->name);
+    group->setPrev(prev);
+}
+
+float IniConfig::getFloat(String group, String name, float def) {
+    IniConfigItem* item = findItem(group, name);
+    return item ? item->getFloat(def) : def;
+}
+
+int IniConfig::getInt(String group, String name, int def) {
+    IniConfigItem* item = findItem(group, name);
+    return item ? item->getInt(def) : def;
+}
+
+uint32_t IniConfig::getDword(String group, String name, uint32_t def) {
+    IniConfigItem* item = findItem(group, name);
+    return item ? item->getDword(def) : def;
+}
+
+bool IniConfig::getBool(String group, String name, bool def) {
+    IniConfigItem* item = findItem(group, name);
+    return item ? item->getBool(def) : def;
+}
+
+String IniConfig::getString(String group, String name, String def) {
+    IniConfigItem* item = findItem(group, name);
+    return item ? item->getString(def) : def;
+}
+
+void IniConfig::setFloat(String group, String item, float value) {
+    findOrCreateItem(group, item)->setFloat(value);
+}
+
+void IniConfig::setInt(String group, String item, int value) {
+    findOrCreateItem(group, item)->setInt(value);
+}
+
+void IniConfig::setDword(String group, String item, uint32_t value) {
+    findOrCreateItem(group, item)->setDword(value);
+}
+
+void IniConfig::setBool(String group, String item, bool value) {
+    findOrCreateItem(group, item)->setBool(value);
+}
+
+void IniConfig::setString(String group, String item, String value) {
+    findOrCreateItem(group, item)->setString(value);
+}
+
+void IniConfig::unset(String group, String name) {
+    IniConfigItem* item = findItem(group, name);
+			if (item) {
+				item->unset();
+				delete item;
+			}
+}
+
+void IniConfig::dump() {
+	if (this->groups) {
+		Serial.println(F("==[ CONFIG ]=="));
+		groups->dump();
+	}
 }
